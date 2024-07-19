@@ -1,0 +1,15 @@
+kubectl create namespace E-commerce
+
+Approach 1: helm install sh
+
+Approach 2: helmfile
+brew install helmfile
+helmfile sync 
+helmfile list
+kubectl get pod
+
+helmfile destroy
+----
+Verify if it's deploy successful
+Load balance IP
+----

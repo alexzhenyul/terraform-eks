@@ -1,0 +1,68 @@
+releases:
+  - name: rediscart
+    namespace: webapps
+    chart: charts/redis
+    values: 
+      - values/redis-values.yaml
+      - appReplicas: "1"
+      - volumeName: "redis-cart-data"
+  
+  - name: emailservice
+    namespace: webapps
+    chart: charts/microservice
+    values:
+      - values/email-service-values.yaml
+
+  - name: cartservice
+    namespace: webapps
+    chart: charts/microservice
+    values:
+      - values/cart-service-values.yaml    
+
+  - name: currencyservice
+    namespace: webapps
+    chart: charts/microservice
+    values:
+      - values/currency-service-values.yaml   
+
+  - name: paymentservice
+    namespace: webapps
+    chart: charts/microservice
+    values:
+      - values/payment-service-values.yaml
+
+  - name: recommendationservice
+    namespace: webapps
+    chart: charts/microservice
+    values:
+      - values/recommendation-service-values.yaml
+
+  - name: productcatalogservice
+    namespace: webapps
+    chart: charts/microservice
+    values:
+      - values/productcatalog-service-values.yaml
+
+  - name: shippingservice
+    namespace: webapps
+    chart: charts/microservice
+    values:
+      - values/shipping-service-values.yaml
+
+  - name: adservice
+    namespace: webapps
+    chart: charts/microservice
+    values:
+      - values/ad-service-values.yaml
+
+  - name: checkoutservice
+    namespace: webapps
+    chart: charts/microservice
+    values:
+      - values/checkout-service-values.yaml
+
+  - name: frontendservice
+    namespace: webapps
+    chart: charts/microservice
+    values:
+      - values/frontend-values.yaml

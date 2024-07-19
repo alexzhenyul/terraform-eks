@@ -1,0 +1,9 @@
+.terraform.lock.hcl
+.terraform/*
+*.tfstate*
+.kubernetes-manifests-*/
+.venv/
+.vs/
+.vscode/
+.DS_Store
+.terraform/terraform.tfstate

@@ -1,0 +1,233 @@
+
+Control (AWS)
+-------
+Kubernetes stateless API server: authentication & authorization
+Control Manager: Threat it like reconciliation loop to detect difference between desired state vs current state
+Scheduler: watch of newly created pod and assign them to the nodes based on available CPU/Memory/Pod request
+Etcd Database: Kubernetes used it for store all its state (Important to regular back up)
+(e.g. deployment spec/replicas of running pods)
+
+Node (Self-Managed)
+------
+kubelet: responsible for running container defined in pod spec
+kube-proxy: network proxy that allos communication to pods from inside/outside of k8s cluster
+runtime
+
+IAM
+------
+IAM role: grant permission to aws service by attached trust policy
+
+Differnce: 
+IAM role: Assuable by anyone who needs it (short-term credential, token)
+IAM user: Uniquely associated with one person (long-term credential, password/access key)
+
+Use OpenID Connect Provider and IAM role for service accounts 
+
+AmazonEKSCLusterPolicy
+AmazonEKSWorkerNodePolicy
+AmazonEKSW_CNI_Policy: grant EKS access to modify IP address configration on EKS worker nodes
+AmazonEC2ContainerRegistryReadOnly: grant EKS permission to pull dokcer images from ECR
+
+# check if user (devops) was added as admin to eks cluser
+EKS cluster -> Access -> IAM access entries -> arn:aws:iam:xxx:user/devops -> with AmazonEKSClusterAdmin
+
+# how to connect to the cluster
+1. check if we have the right user
+aws sts get-caller-identity
+2. update kubeconfig with newly created eks cluster
+aws eks update-kubeconfig --region ap-southeast-4 --name cluster-name
+3. check if connect successfully
+kubectl get nodes
+4. check if we have read/write permission for everything
+kubectl auth can-i "*" "*"
+
+# Adding IAM user & IAM role to aws eks
+Consider you/jenkins created the new cluster -> they get the access to the eks cluster
+# how to share access to other team members (e.g devops team member - admin, development team - access to speciifc namespace)
+Best to assign all permission to role
+Dev Cluster -> R/W to devops/dev1/dev2
+PROD Cluster -> R/W to devops, R to dev1/dev2
+# we can do that using RBAC (role-based access control)
+
+AWS - IAM user/IAM role
+K8S - user/service account/RBAC group
+
+EKS API
+1. k8s create clusterRole
+2. k8s clusterRoleBinding
+3. link IAM to RBAC
+
+Best practise: not to use identities/long-term credential
+
+AWS: IAM role -> IAM policy -> admin access to EKS
+K8S: use default cluster-admin cluster role and bind it with new admin group
+
+1. rbac folder for creating role and role binding
+kubectl apply -f developer_rbac
+2. create user via terraform file (developer.tf)
+3. aws configure developer profile
+aws configure --profile developer
+4. check developer profile
+aws sts get-caller-identity --profile developer
+aws eks update-kubeconfig --region ap-southeast-4 --name stage-goofy --profile developer
+5. how to check local k8s config file
+kubectl config view --minify
+6. how to check if I can perform certain action on k8s
+kubectl auth can-i get pods
+kubectl auth can-i get nodes
+kubectl auth can-i "*" "*"
+
+How to switch back to original profile (devops)
+rerun below command 
+aws eks update-kubeconfig --region ap-southeast-4 --name stage-goofy
+kubectl apply -f admin_rbac
+
+create a aws configure file manually for profile
+vim ~/.aws/config
+press i enter into edit mode
+add below profile into the file 
+eks -> access -> look for iam:role:eksClusterName with Session Name
+[profile eks-admin]
+role_arn = arn:aws:iam::253343486660:role/stage-goofy-eks-admin
+source_profile = DevOps_Members
+
+update kubeconfig again via eks-admin profile
+aws eks update-kubeconfig --region ap-southeast-4 --name stage-goofy --profile eks-admin
+check kubeconfig file
+kubectl config view --minify
+kubectl get pods
+
+
+# added helm and metrics-server
+kubectl get pods -n kube-system
+# fetch logs 
+kubectl logs -l app.kubernetes.io/instance=metrics-server -f -n kube-system
+# check metircs of each namespace
+kubectl top pods -n kube-system
+
+# create jenkins service account, role, role binding, secret
+kubectl create namespace webapps
+kubectl apply -f jenkins -n webapps
+kubectl describe secret mysecretname -n webapps
+copy the secret token and set it up in Jenkins Cred in secret text
+will use this cred for eks deployment
+
+# local deployment of e-commerce application
+brew installl helm
+brew installl helmfile
+cd helm-chart
+helmfile sync
+helmfile list
+helmfile destroy
+# check if pods and svc running
+kubectl get pods -n webapps
+kubectl get svc -n webapps   -> get front end/load balancer link (abf9152390ae948adad6be6e82450bf3-707526820.ap-southeast-4.elb.amazonaws.com)
+# check each top usage against CPU/RAM
+kubectl top pods -n webapps
+
+# make sure deployment with resources block (request & limits for CPU & Memory)
+
+# HPA: K8S component that automatically updates workload resources such as deployment/stateful set, scaling them to match demand for application in the cluster
+
+Added hpa.yaml in helm-chart/charts/microservice/templates
+
+# check sample microservice application
+kubectl get pods -n webapps
+kubectl get hpa -n webapps
+kubectl get svc -n webapps
+
+kubectl port-forward svc/myapp 8080 -n webapps # only if needed
+In this case, we are using frontend service/load balancer 
+
+# target showing <unknown>/80%, <unknown>/70% 
+reason for this, we didn't specify resources block in templates/values file (To be included in later stages)
+
+# how to test if hpa working, send CPU intensive tasks
+curl "localhost:8080/api/cpu?index=44"
+
+# delete all resouces in namespace webapps
+kubectl delete ns webapps
+
+## Cluster autoscaler & EKS pod identities
+Cluster autoscaler need permission from aws to perform auto scale cluster tasks
+# Previous: OICD provide (Open ID provider), a bit more complex -> create provider, IAM role, establish trust with particular namespace and RBAC service account
+# eks team: new approach eks pod identities -> to grant access via add-ons, still need to create IAM role and service accountm, for trust part, we can use same pods.eks.amazonaws.com, final thing, we need aws_eks_pod_identity_association
+
+1. add pod-identity-addon.tf
+- added cluster name/add on name/add on latest verion
+# how to find the latest version of add on 
+aws eks describe-addon-versions --region ap-southeast-4 --addon-name eks-pod-identity-agent
+
+# check if eks-pod-identity-agent is running
+kubectl get pods -n kube-system
+
+# DaemonSets are used for deploying background services across clusters, providing support services for every node—such as system operations services, collecting logs, monitoring frameworks like Prometheus, and storage volumes.
+
+kubectl get daemonset eks-pod-identity-agent -n kube-system
+
+# then create all component for cluster auto-scaler and deploy it via helm
+terraform apply
+# check if auto-scaler is running
+kubectl get pods -n kube-system
+
+# autoscaler pods status: CrashLoopBackOff status
+# reference: https://repost.aws/knowledge-center/amazon-eks-troubleshoot-autoscaler
+kubectl describe pod autoscaler-aws-cluster-autoscaler-855f6b6976-9s5v7 -n kube-system
+kubectl logs autoscaler-aws-cluster-autoscaler-855f6b6976-9s5v7 -p -n kube-syst
+
+# Error logs
+Failed to regenerate ASG cache: AccessDenied: User: arn:aws:sts::253343486660:assumed-role/stage-goofy-eks-nodes/i-076ff1816c11da64d is not authorized to perform: autoscaling:DescribeAutoScalingGroups because no identity-based policy allows the autoscaling:DescribeAutoScalingGroups action
+status code: 403, request id: d9235cf4-8370-4890-9699-ff75e378527b
+
+Failed to create AWS Manager: AccessDenied: User: arn:aws:sts::253343486660:assumed-role/stage-goofy-eks-nodes/i-076ff1816c11da64d is not authorized to perform: autoscaling:DescribeAutoScalingGroups because no identity-based policy allows the autoscaling:DescribeAutoScalingGroups action
+
+# Best approach to apply autoscaling:DescribeAutoScalingGroups only to node iam
+# delete CrashLoopBackOff pods -> rerun
+kubectl delete pod autoscaler-aws-cluster-autoscaler-855f6b6976-9s5v7 -n kube-system
+
+# AWS load balancer controller (TLS)
+# TLS: Transport layer security
+
+## Previous
+expose application running in k8s to internet, when create a load balancer for application, k8s know how to create cloud native cloud balancer via cloud controller manager (contains logic create load balancer for different cloud), for aws, by default, it create a classic load balancer
+
+you can specify the type, schema, other configuration in k8s load balancer yaml file (tie with k8s code, development team responsible for cloud logic) it might receive bugs/security fixes, might slow down the release feature, also it adds all your k8s worker to target group and use node port behind scenes to route traffic, added additonal network hop, if you run very large k8s cluster, there's a hard limit of 500 nodes can be added to the target group
+
+## AWS managed load balancer controller
+it creates network load balancer (NLB) & Ingresses
+independent of k8s release cycle
+allow clour provider to implement new features
+native VPC network: eks cluster -> each pod get vpc routable IP address, it means you can directly add pod ip addresses to the load balancer target group
+
+
+# 2 type of ingress (pros & cons)
+1. use AWS load balancer controller to create ingresses
+    - layer 7 application load balancer (HTTP protocol) - application layer
+    - use it to route request based on host header, GET/POST etc
+    - target group will directly add teh pod IP address
+    - instance mode still avialble, ip mode is more efficient
+
+2. traditional ingress controller
+    - like NGINX/TRAEFIK/etc, deployed like application
+    - layer 4 network load balancer - transport layer (including TCP/UDP)
+    - act as the gateway for the application
+    - each request go through NGINX controller pod and then routed to the application
+
+# if you want to secure your application with TLS and HTTPS
+- you need to obtain a TLS cert from AWS cert manager
+
+# To secure application with TLS, you need to deploy cert-manager which auto obtains and renew cert 
+# note: you have to store certificate and private key in k8s and mount them to the NGINX pod, this way, it can terminate TLS and route traffic to your application
+# NGINX - consider proxy, it add complexity, but we can collect prometheus metrics from a single place for all application, we shared a single LB across application inside K8S
+# Application LB - you need to get metrics from AWS side, it create one ALB per application or with workaround
+
+# PROD -> install AWS load balancer controller and create network load balancer for NGINX ingress controller using IP mode
+
+# AWS Load balance controler
+# check if controller deployed and running
+kubectl get pods -n kube-system 
+aws-load-balancer-controller-6fc7d9b676-x96jj
+
+# modify the service file for load balancer
+
+
