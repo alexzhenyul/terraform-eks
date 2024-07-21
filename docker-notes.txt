@@ -1,0 +1,4 @@
+docker images
+docker pull alexzhenyul/frontend:latest
+docker tag alexzhenyul/frontend:latest alexzhenyul/frontend:v0.1.0
+docker push alexzhenyul/frontend:v0.1.0 

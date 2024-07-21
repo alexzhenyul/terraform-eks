@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: myapp
-          image: aputra/myapp-195:v2
+          image: zhenyualexl/myapp-195:v2
           ports:
             - name: http
               containerPort: 8080

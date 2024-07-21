@@ -3,7 +3,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: {{ .Values.appName }}
-  namespace: webapps
+  namespace: micro-app
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
