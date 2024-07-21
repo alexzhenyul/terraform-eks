@@ -1,6 +1,6 @@
 appName: currencyservice
-appImage: gcr.io/google-samples/microservices-demo/currencyservice
-appVersion: v0.2.3
+appImage: alexzhenyul/currencyservice
+appVersion: latest
 appReplicas: 2
 containerPort: 7000
 containerEnvVars:

@@ -1,6 +1,6 @@
 appName: emailservice
-appImage: gcr.io/google-samples/microservices-demo/emailservice
-appVersion: v0.2.3
+appImage: alexzhenyul/emailservice
+appVersion: latest
 appReplicas: 2
 containerPort: 8080
 containerEnvVars:
